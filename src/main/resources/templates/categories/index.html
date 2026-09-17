@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="vi"
+      xmlns:th="https://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+<head>
+    <title>Quản lý Category (AJAX)</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="d-flex justify-content-between">
+        <h2>Quản lý Category</h2>
+        <button class="btn btn-primary" onclick="showAddModal()"> + Thêm Category </button>
+    </div>
+
+    <div class="row mt-3 mb-3">
+        <div class="col-md-6">
+            <input type="text" class="form-control" id="keyword" placeholder="Nhập tên category...">
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" id="size">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-success" onclick="loadCategories(0)">Tìm kiếm</button>
+        </div>
+    </div>
+
+    <table class="table table-bordered table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Hình ảnh</th>
+                <th>Tên Category</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="categoryTableBody">
+            <!-- Data will be loaded here via AJAX -->
+        </tbody>
+    </table>
+
+    <nav>
+        <ul class="pagination" id="pagination">
+            <!-- Pagination will be loaded here -->
+        </ul>
+    </nav>
+
+    <!-- Modal cho Thêm/Sửa -->
+    <div class="modal fade" id="categoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="categoryForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalTitle">Thêm Category</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="categoryId" name="categoryId">
+                        <div class="mb-3">
+                            <label>Tên Category</label>
+                            <input type="text" class="form-control" id="categoryName" name="categoryName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Icon/Hình ảnh</label>
+                            <input type="file" class="form-control" id="icon" name="icon">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            loadCategories(0);
+
+            $('#categoryForm').submit(function(e) {
+                e.preventDefault();
+                let id = $('#categoryId').val();
+                let url = id ? '/api/category/updateCategory' : '/api/category/addCategory';
+                let type = 'POST'; // Use POST for multipart form data
+                
+                let formData = new FormData();
+                if(id) {
+                    formData.append('categoryId', id);
+                    formData.append('_method', 'PUT'); // Hidden method for Spring
+                }
+                formData.append('categoryName', $('#categoryName').val());
+                if($('#icon')[0].files[0]) {
+                    formData.append('icon', $('#icon')[0].files[0]);
+                } else {
+                    formData.append('icon', new File([""], "empty")); // Prevent empty file error in Spring if not provided
+                }
+
+                $.ajax({
+                    url: url,
+                    type: type,
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        alert(response.message);
+                        $('#categoryModal').modal('hide');
+                        loadCategories(0);
+                    },
+                    error: function(xhr) {
+                        alert('Lỗi: ' + xhr.responseText);
+                    }
+                });
+            });
+        });
+
+        function loadCategories(page) {
+            let keyword = $('#keyword').val();
+            let size = $('#size').val();
+            $.ajax({
+                url: '/api/category',
+                type: 'GET',
+                data: { page: page, size: size, keyword: keyword },
+                success: function(response) {
+                    if(response.status) {
+                        let data = response.body;
+                        let tbody = '';
+                        $.each(data.content, function(i, item) {
+                            let imgUrl = item.icon ? '/uploads/' + item.icon : '';
+                            let imgTag = item.icon ? `<img src="${imgUrl}" style="width: 50px; height: 50px;">` : 'Chưa có';
+                            tbody += `
+                                <tr>
+                                    <td>${item.categoryId}</td>
+                                    <td>${imgTag}</td>
+                                    <td>${item.categoryName}</td>
+                                    <td>
+                                        <button class="btn btn-warning btn-sm" onclick="editCategory(${item.categoryId})">Sửa</button>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteCategory(${item.categoryId})">Xóa</button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        $('#categoryTableBody').html(tbody);
+                        
+                        // Render pagination
+                        let pagination = '';
+                        if(!data.first) {
+                            pagination += `<li class="page-item"><a class="page-link" href="javascript:loadCategories(${data.number - 1})">Previous</a></li>`;
+                        }
+                        for(let i=0; i<data.totalPages; i++) {
+                            pagination += `<li class="page-item ${i === data.number ? 'active' : ''}"><a class="page-link" href="javascript:loadCategories(${i})">${i+1}</a></li>`;
+                        }
+                        if(!data.last) {
+                            pagination += `<li class="page-item"><a class="page-link" href="javascript:loadCategories(${data.number + 1})">Next</a></li>`;
+                        }
+                        $('#pagination').html(pagination);
+                    }
+                }
+            });
+        }
+
+        function showAddModal() {
+            $('#categoryForm')[0].reset();
+            $('#categoryId').val('');
+            $('#modalTitle').text('Thêm Category');
+            $('#categoryModal').modal('show');
+        }
+
+        function editCategory(id) {
+            $.ajax({
+                url: '/api/category/getCategory',
+                type: 'POST',
+                data: { id: id },
+                success: function(response) {
+                    if(response.status) {
+                        let item = response.body;
+                        $('#categoryId').val(item.categoryId);
+                        $('#categoryName').val(item.categoryName);
+                        $('#modalTitle').text('Sửa Category');
+                        $('#categoryModal').modal('show');
+                    }
+                }
+            });
+        }
+
+        function deleteCategory(id) {
+            if(confirm('Bạn có chắc muốn xóa?')) {
+                $.ajax({
+                    url: '/api/category/deleteCategory',
+                    type: 'DELETE',
+                    data: { categoryId: id },
+                    success: function(response) {
+                        alert(response.message);
+                        loadCategories(0);
+                    },
+                    error: function(xhr) {
+                        alert('Lỗi xóa: ' + xhr.responseText);
+                    }
+                });
+            }
+        }
+    </script>
+</section>
+</body>
+</html>

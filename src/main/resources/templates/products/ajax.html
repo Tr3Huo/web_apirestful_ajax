@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="vi"
+      xmlns:th="https://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+<head>
+    <title>Quản lý Product (AJAX)</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="d-flex justify-content-between">
+        <h2>Quản lý Product</h2>
+        <button class="btn btn-primary" onclick="showAddModal()"> + Thêm Product </button>
+    </div>
+
+    <div class="row mt-3 mb-3">
+        <div class="col-md-6">
+            <input type="text" class="form-control" id="keyword" placeholder="Nhập tên product...">
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" id="size">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-success" onclick="loadProducts(0)">Tìm kiếm</button>
+        </div>
+    </div>
+
+    <table class="table table-bordered table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Hình ảnh</th>
+                <th>Tên Product</th>
+                <th>Giá</th>
+                <th>Số lượng</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="productTableBody">
+            <!-- Data will be loaded here via AJAX -->
+        </tbody>
+    </table>
+
+    <nav>
+        <ul class="pagination" id="pagination">
+            <!-- Pagination will be loaded here -->
+        </ul>
+    </nav>
+
+    <!-- Modal cho Thêm/Sửa -->
+    <div class="modal fade" id="productModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="productForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalTitle">Thêm Product</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="productId" name="productId">
+                        <div class="mb-3">
+                            <label>Tên Product</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Giá</label>
+                            <input type="number" class="form-control" id="price" name="price" required min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label>Số lượng</label>
+                            <input type="number" class="form-control" id="quantity" name="quantity" required min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label>Mô tả</label>
+                            <textarea class="form-control" id="description" name="description"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label>Category</label>
+                            <select class="form-control" id="categoryId" name="categoryId" required>
+                                <!-- Categories loaded via AJAX -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label>Hình ảnh</label>
+                            <input type="file" class="form-control" id="image" name="image">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            loadProducts(0);
+            loadCategoriesOptions();
+
+            $('#productForm').submit(function(e) {
+                e.preventDefault();
+                let id = $('#productId').val();
+                let url = id ? '/api/product/updateProduct/' + id : '/api/product/addProduct';
+                let type = 'POST'; // Use POST for multipart form data
+                
+                let formData = new FormData();
+                if(id) {
+                    formData.append('_method', 'PUT'); // Hidden method for Spring
+                }
+                formData.append('name', $('#name').val());
+                formData.append('price', $('#price').val());
+                formData.append('quantity', $('#quantity').val());
+                formData.append('description', $('#description').val());
+                formData.append('categoryId', $('#categoryId').val());
+                if($('#image')[0].files[0]) {
+                    formData.append('image', $('#image')[0].files[0]);
+                }
+
+                $.ajax({
+                    url: url,
+                    type: type,
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        alert(response.message);
+                        $('#productModal').modal('hide');
+                        loadProducts(0);
+                    },
+                    error: function(xhr) {
+                        alert('Lỗi: ' + xhr.responseText);
+                    }
+                });
+            });
+        });
+
+        function loadCategoriesOptions() {
+            $.ajax({
+                url: '/api/category/all',
+                type: 'GET',
+                success: function(response) {
+                    if(response.status) {
+                        let opts = '<option value="">Chọn danh mục</option>';
+                        $.each(response.body, function(i, item) {
+                            opts += `<option value="${item.categoryId}">${item.categoryName}</option>`;
+                        });
+                        $('#categoryId').html(opts);
+                    }
+                }
+            });
+        }
+
+        function loadProducts(page) {
+            let keyword = $('#keyword').val();
+            let size = $('#size').val();
+            $.ajax({
+                url: '/api/product',
+                type: 'GET',
+                data: { page: page, size: size, keyword: keyword },
+                success: function(response) {
+                    if(response.status) {
+                        let data = response.body;
+                        let tbody = '';
+                        $.each(data.content, function(i, item) {
+                            let imgUrl = item.images ? '/uploads/' + item.images : '';
+                            let imgTag = item.images ? `<img src="${imgUrl}" style="width: 50px; height: 50px;">` : 'Chưa có';
+                            tbody += `
+                                <tr>
+                                    <td>${item.id}</td>
+                                    <td>${imgTag}</td>
+                                    <td>${item.name}</td>
+                                    <td>${item.price}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>
+                                        <button class="btn btn-warning btn-sm" onclick="editProduct(${item.id})">Sửa</button>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteProduct(${item.id})">Xóa</button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        $('#productTableBody').html(tbody);
+                        
+                        // Render pagination
+                        let pagination = '';
+                        if(!data.first) {
+                            pagination += `<li class="page-item"><a class="page-link" href="javascript:loadProducts(${data.number - 1})">Previous</a></li>`;
+                        }
+                        for(let i=0; i<data.totalPages; i++) {
+                            pagination += `<li class="page-item ${i === data.number ? 'active' : ''}"><a class="page-link" href="javascript:loadProducts(${i})">${i+1}</a></li>`;
+                        }
+                        if(!data.last) {
+                            pagination += `<li class="page-item"><a class="page-link" href="javascript:loadProducts(${data.number + 1})">Next</a></li>`;
+                        }
+                        $('#pagination').html(pagination);
+                    }
+                }
+            });
+        }
+
+        function showAddModal() {
+            $('#productForm')[0].reset();
+            $('#productId').val('');
+            $('#modalTitle').text('Thêm Product');
+            $('#productModal').modal('show');
+        }
+
+        function editProduct(id) {
+            $.ajax({
+                url: '/api/product/' + id,
+                type: 'GET',
+                success: function(response) {
+                    if(response.status) {
+                        let item = response.body;
+                        $('#productId').val(item.id);
+                        $('#name').val(item.name);
+                        $('#price').val(item.price);
+                        $('#quantity').val(item.quantity);
+                        $('#description').val(item.description);
+                        if(item.category) {
+                            $('#categoryId').val(item.category.categoryId);
+                        }
+                        $('#modalTitle').text('Sửa Product');
+                        $('#productModal').modal('show');
+                    }
+                }
+            });
+        }
+
+        function deleteProduct(id) {
+            if(confirm('Bạn có chắc muốn xóa?')) {
+                $.ajax({
+                    url: '/api/product/deleteProduct/' + id,
+                    type: 'DELETE',
+                    success: function(response) {
+                        alert(response.message);
+                        loadProducts(0);
+                    },
+                    error: function(xhr) {
+                        alert('Lỗi xóa: ' + xhr.responseText);
+                    }
+                });
+            }
+        }
+    </script>
+</section>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi"
+      xmlns:th="https://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+<head>
+    <title>Danh sách sản phẩm</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="d-flex justify-content-between">
+        <h2>Danh sách sản phẩm</h2>
+        <a class="btn btn-primary" th:href="@{/products/create}"> + Thêm sản phẩm </a>
+    </div>
+
+    
+    <form class="row mt-3 mb-3" method="get" th:action="@{/products}">
+        <div class="col-md-6">
+            <input type="text" class="form-control" name="keyword" th:value="${keyword}" placeholder="Nhập tên sản phẩm...">
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="size">
+                <option value="5" th:selected="${size == 5}">5</option>
+                <option value="10" th:selected="${size == 10}">10</option>
+                <option value="20" th:selected="${size == 20}">20</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-success" type="submit">Tìm kiếm</button>
+        </div>
+    </form>
+
+    
+    <table class="table table-bordered table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Hình ảnh</th>
+                <th>Tên sản phẩm</th>
+                <th>Giá</th>
+                <th>Số lượng</th>
+                <th>Mô tả</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="product : ${products.content}">
+                <td th:text="${product.id}"></td>
+                <td>
+                    <img th:if="${product.images != null and !#strings.isEmpty(product.images)}"
+                         th:src="@{'/uploads/' + ${product.images}}"
+                         alt="Product Image"
+                         style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">
+                    <span th:if="${product.images == null or #strings.isEmpty(product.images)}">
+                        Chưa có ảnh
+                    </span>
+                </td>
+                <td th:text="${product.name}"></td>
+                <td><span th:text="${#numbers.formatDecimal(product.price, 0, 'COMMA', 2, 'POINT')}"></span></td>
+                <td th:text="${product.quantity}"></td>
+                <td th:text="${product.description}"></td>
+                <td>
+                    <a class="btn btn-warning btn-sm" th:href="@{/products/edit/{id}(id=${product.id})}"> Sửa </a>
+                    <a class="btn btn-danger btn-sm" th:href="@{/products/delete/{id}(id=${product.id})}"
+                       onclick="return confirm('Bạn có chắc muốn xóa?')"> Xóa </a>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    
+    <div class="alert alert-warning" th:if="${products.totalElements == 0}">
+        Không tìm thấy sản phẩm.
+    </div>
+
+    
+    <nav th:if="${products.totalPages > 1}">
+        <ul class="pagination">
+            
+            <li class="page-item" th:classappend="${products.first} ? 'disabled'">
+                <a class="page-link" th:href="@{/products(page=${products.number - 1}, size=${size}, keyword=${keyword})}">
+                    Previous
+                </a>
+            </li>
+
+            
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, products.totalPages - 1)}"
+                th:classappend="${i == products.number} ? 'active'">
+                <a class="page-link" th:text="${i + 1}" th:href="@{/products(page=${i}, size=${size}, keyword=${keyword})}"></a>
+            </li>
+
+            
+            <li class="page-item" th:classappend="${products.last} ? 'disabled'">
+                <a class="page-link" th:href="@{/products(page=${products.number + 1}, size=${size}, keyword=${keyword})}">
+                    Next
+                </a>
+            </li>
+        </ul>
+    </nav>
+</section>
+</body>
+</html>
